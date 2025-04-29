@@ -2,12 +2,14 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-solc_version = "0.8.20"
+solc_version = "0.8.25"
 # via_ir = true
 fs_permissions = [{ access = "read", path = "./"}]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@eth-optimism=lib/optimism/packages/contracts-bedrock/src",
+    "intent-framework/=lib/intent-framework/solidity/src",
     "@eth-optimism=lib/optimism/packages/contracts-bedrock/src"
 ]   
