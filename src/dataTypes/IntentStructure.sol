@@ -68,6 +68,14 @@ struct StoredIntentData {
     IntentStatus status;
 }
 
+struct SystemOrderData {
+    IntentData intent;
+    address creatorAddress;
+    address verifierAddress;
+    uint256 nativeTokenValue;
+    TokenData[] solverTokens;
+}
+
 bytes32 constant SYSTEM_ORDER_TYPE_HASH = keccak256(
     abi.encodePacked(
         "IntentData(",

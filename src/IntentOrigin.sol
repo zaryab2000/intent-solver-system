@@ -10,7 +10,7 @@ import { OnchainCrossChainOrder,
 
 import {BaseVerifier} from "./Verifier/BaseVerifier.sol";
 import {IOriginSettler} from "intents-framework/ERC7683/IERC7683.sol";  
-import {StoredIntentData, IntentData, SolverData, TokenData, TargetCall, IntentStatus, SYSTEM_ORDER_TYPE_HASH} from "./dataTypes/IntentStructure.sol";
+import {StoredIntentData, IntentData, SolverData, SystemOrderData, TokenData, TargetCall, IntentStatus, SYSTEM_ORDER_TYPE_HASH} from "./dataTypes/IntentStructure.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -57,11 +57,13 @@ contract IntentOrigin is Ownable, IOriginSettler {
             revert InvalidTypeDataHash();
         }
 
-        IntentData memory intent = abi.decode(order.orderData, (IntentData));
+        SystemOrderData memory systemOrderData = abi.decode(order.orderData, (SystemOrderData));
 
-        if(intent.source != block.chainid){
+        if(systemOrderData.intent.source != block.chainid){
             revert SourceChainMismatch();
         }
+
+        IntentData memory intent = systemOrderData.intent;
 
         // 4. callDepostAndLock() function to transfer required amount into the contract
         bytes32 intentId = _depositAndLock(intent, msg.sender);
@@ -115,6 +117,68 @@ contract IntentOrigin is Ownable, IOriginSettler {
     /// @param order The OnchainCrossChainOrder definition
     /// @return ResolvedCrossChainOrder hydrated order data including the inputs and outputs of the order
     function resolve(OnchainCrossChainOrder calldata order) public view override returns (ResolvedCrossChainOrder memory){
+        // 1. Check the typehash of the order
+        if(order.orderDataType != SYSTEM_ORDER_TYPE_HASH){
+            revert InvalidTypeDataHash();
+        }
+        // 2. Decode the order data into the intent data
+        SystemOrderData memory systemOrderData = abi.decode(order.orderData, (SystemOrderData));
+
+        // 3. Prepare the fields for ResolvedCrossChainOrder
+            // 3.a Create Output[] maxSpent
+        uint256 totalTokens_intentData = systemOrderData.intent.tokens.length;
+        Output[] memory maxSpent = new Output[](totalTokens_intentData);
+
+        for(uint256 i = 0; i < totalTokens_intentData; i++){
+            maxSpent[i] = Output(
+                bytes32(uint256(uint160(systemOrderData.intent.tokens[i].token))),
+                systemOrderData.intent.tokens[i].amount,
+                bytes32(uint256(uint160(address(0)))),
+                systemOrderData.intent.destination
+            );
+        }
+        // 3.b Create Output[] minReceived
+        uint256 totalTokens_solverData = systemOrderData.solverTokens.length;
+        Output[] memory minReceived = new Output[](totalTokens_solverData);
+
+        for(uint256 i = 0; i < totalTokens_solverData; i++){
+            minReceived[i] = Output(
+                bytes32(uint256(uint160(systemOrderData.solverTokens[i].token))),
+                systemOrderData.solverTokens[i].amount,
+                bytes32(uint256(uint160(address(0)))),
+                systemOrderData.intent.destination
+            );
+        }
+
+        if(systemOrderData.nativeTokenValue > 0){
+            minReceived[totalTokens_solverData] = Output(
+                bytes32(uint256(uint160(address(0)))),
+                systemOrderData.nativeTokenValue,
+                bytes32(uint256(uint160(address(0)))),
+                systemOrderData.intent.destination
+            );
+        }
+        IntentData memory intent = systemOrderData.intent;
+
+        FillInstruction[] memory instructions = new FillInstruction[](1);
+        instructions[0] = FillInstruction(
+            systemOrderData.intent.destination,
+            bytes32(uint256(uint160(systemOrderData.intent.source))),
+            abi.encode(intent)
+        );
+
+        bytes32 intentId = getIntenId(intent, msg.sender);
+
+        return ResolvedCrossChainOrder(
+            systemOrderData.creatorAddress,
+            systemOrderData.intent.source,
+            order.fillDeadline,
+            order.fillDeadline,
+            intentId,
+            maxSpent,
+            minReceived,
+            instructions
+        );
 
     }
 
