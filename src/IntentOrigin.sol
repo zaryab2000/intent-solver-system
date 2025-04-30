@@ -28,7 +28,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  *                                        3. adhering to IERC7683 OriginSettler
  *                                        4. allowing solver settlement based on verification from BaseVerifiers.
  */
-contract IntentOrigin is Ownable, IOriginSettler {
+contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
 
@@ -36,11 +36,20 @@ contract IntentOrigin is Ownable, IOriginSettler {
     address public verifier; 
     mapping(bytes32 => StoredIntentData) public intentData;
 
+    bytes32 public GASLESS_CROSSCHAIN_ORDER_TYPEHASH =
+        keccak256(
+            "GaslessCrossChainOrder(address originSettler,address user,uint256 nonce,uint256 originChainId,uint32 openDeadline,uint32 fillDeadline,bytes32 orderDataType,bytes32 orderDataHash)"
+        );
+
 
     // TODO: Check the need for other STATES and Constructor
-    constructor() Ownable(msg.sender) {}
+    constructor(
+        string memory name, 
+        string memory version
+        ) Ownable(msg.sender) EIP712(name, version) {}
 
     // ERROR 
+    error InvalidSignature();
     error InvalidIntentData();
     error InvalidTypeDataHash();
     error SourceChainMismatch();
@@ -90,6 +99,33 @@ contract IntentOrigin is Ownable, IOriginSettler {
     )
         external override{
 
+            // Check order deadline
+            if(order.fillDeadline < block.timestamp){
+                revert InvalidIntentData();
+            }
+            // Check order signature
+            if(!verifyGaslessOrder(order, signature)){
+                revert InvalidSignature();
+            }
+            // Check order typehash
+            if(order.orderDataType != SYSTEM_ORDER_TYPE_HASH){
+                revert InvalidTypeDataHash();
+            }
+            // Decode order data into SystemOrderData
+
+            SystemOrderData memory systemOrderData = abi.decode(order.orderData, (SystemOrderData));
+
+            if(systemOrderData.intent.source != block.chainid){
+                revert SourceChainMismatch();
+            }
+
+            IntentData memory intent = systemOrderData.intent;
+            bytes32 intentId = _depositAndLock(intent, order.user);
+
+            emit Open(
+                intentId,
+                resolveFor(order, originFillerData)
+            );
     }
 
     // TODO: COMPLETE ALGO 
@@ -108,9 +144,62 @@ contract IntentOrigin is Ownable, IOriginSettler {
         override
         returns (ResolvedCrossChainOrder memory){
 
-        }
+            if(order.orderDataType != SYSTEM_ORDER_TYPE_HASH){
+                revert InvalidTypeDataHash();
+            }
 
-    // TODO: COMPLETE ALGO 
+            SystemOrderData memory systemOrderData = abi.decode(order.orderData, (SystemOrderData));
+
+            uint256 totalTokens_intentData = systemOrderData.intent.tokens.length;
+            Output[] memory maxSpent = new Output[](totalTokens_intentData);
+
+            for(uint256 i = 0; i < totalTokens_intentData; i++){
+                maxSpent[i] = Output(
+                    bytes32(uint256(uint160(systemOrderData.intent.tokens[i].token))),
+                    systemOrderData.intent.tokens[i].amount,
+                    bytes32(uint256(uint160(address(0)))),
+                    systemOrderData.intent.destination
+                );
+            }
+            uint256 totalTokens_solverData = systemOrderData.solverTokens.length;
+            Output[] memory minReceived = new Output[](totalTokens_solverData);
+            for(uint256 i = 0; i < totalTokens_solverData; i++){
+                minReceived[i] = Output(
+                    bytes32(uint256(uint160(systemOrderData.solverTokens[i].token))),
+                    systemOrderData.solverTokens[i].amount,
+                    bytes32(uint256(uint160(address(0)))),
+                    systemOrderData.intent.destination
+                );
+            }
+            if(systemOrderData.nativeTokenValue > 0){
+                minReceived[totalTokens_solverData] = Output(
+                    bytes32(uint256(uint160(address(0)))),
+                    systemOrderData.nativeTokenValue,
+                    bytes32(uint256(uint160(address(0)))),
+                    systemOrderData.intent.destination
+                );
+            }
+
+            IntentData memory intent = systemOrderData.intent;
+            FillInstruction[] memory instructions = new FillInstruction[](1);
+            instructions[0] = FillInstruction(
+                systemOrderData.intent.destination,
+                bytes32(uint256(uint160(systemOrderData.intent.source))),
+                abi.encode(intent)
+            );
+            bytes32 intentId = getIntenId(intent, order.user);
+            return ResolvedCrossChainOrder(
+                systemOrderData.creatorAddress,
+                systemOrderData.intent.source,
+                order.fillDeadline,
+                order.fillDeadline,
+                intentId,
+                maxSpent,
+                minReceived,
+                instructions
+            );
+
+        }
 
     /// @notice Resolves a specific OnchainCrossChainOrder into a generic ResolvedCrossChainOrder
     /// @dev Intended to improve standardized integration of various order types and settlement contracts
@@ -218,5 +307,30 @@ contract IntentOrigin is Ownable, IOriginSettler {
             _caller,
             IntentStatus.OPEN
         ); 
+    }
+
+    function verifyGaslessOrder(GaslessCrossChainOrder calldata order, bytes calldata signature) internal view returns (bool) {
+        if (order.originSettler != address(this)) {
+            return false;
+        }
+        
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                GASLESS_CROSSCHAIN_ORDER_TYPEHASH,
+                order.originSettler,
+                order.user,
+                order.nonce,
+                order.originChainId,
+                order.openDeadline,
+                order.fillDeadline,
+                order.orderDataType,
+                keccak256(order.orderData) // Hash of the order data
+            )
+        );
+
+        bytes32 hash = _hashTypedDataV4(messageHash);
+        address signer = hash.recover(signature);
+
+        return signer == order.user;
     }
 }
