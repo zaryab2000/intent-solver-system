@@ -10,5 +10,5 @@ fs_permissions = [{ access = "read", path = "./"}]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@eth-optimism=lib/optimism/packages/contracts-bedrock/src",
-    "intent-framework/=lib/intent-framework/solidity/src"
+    "intents-framework/=lib/intents-framework/solidity/src"
 ]   

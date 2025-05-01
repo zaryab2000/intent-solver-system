@@ -49,6 +49,7 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
         ) Ownable(msg.sender) EIP712(name, version) {}
 
     // ERROR 
+    error InvalidCaller();
     error InvalidSignature();
     error InvalidIntentData();
     error InvalidTypeDataHash();
@@ -72,10 +73,11 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
             revert SourceChainMismatch();
         }
 
-        IntentData memory intent = systemOrderData.intent;
-
+        if(systemOrderData.intent.caller != msg.sender){
+            revert InvalidCaller();
+        }
         // 4. callDepostAndLock() function to transfer required amount into the contract
-        bytes32 intentId = _depositAndLock(intent, msg.sender);
+        bytes32 intentId = _depositAndLock(systemOrderData.intent, systemOrderData.intent.caller);
 
         // 5. Emit Open event with the intentId and resolved order
         emit Open(intentId, resolve(order));
@@ -83,8 +85,6 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
 
 
     }
-
-    // TODO: COMPLETE ALGO 
 
      /// @notice Opens a gasless cross-chain order on behalf of a user.
     /// @dev To be called by the filler.
@@ -119,8 +119,12 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
                 revert SourceChainMismatch();
             }
 
+            if(systemOrderData.intent.caller != order.user){
+                revert InvalidCaller();
+            }
+
             IntentData memory intent = systemOrderData.intent;
-            bytes32 intentId = _depositAndLock(intent, order.user);
+            bytes32 intentId = _depositAndLock(intent, systemOrderData.intent.caller);
 
             emit Open(
                 intentId,

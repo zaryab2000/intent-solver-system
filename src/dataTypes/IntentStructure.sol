@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import "../interfaces/IVerifier.sol";
 
 
 /**
@@ -44,19 +45,17 @@ struct TokenData {
  */
 
 struct SolverData {
-    bytes32 intentId;
-    address verifier;
-    uint256 source;
-    uint256 destination;
     address solverAddress;
-    TokenData[] tokens;
+    IVerifier.VerificationType v_type;
 }
 
 struct IntentData {
     bytes32 salt;
+    address caller;
     uint256 source;
     uint256 deadline;
     uint256 destination;
+    address fillerAddress;
     TargetCall[] calls;
     TokenData[] tokens;
     IntentStatus status;
@@ -80,9 +79,11 @@ bytes32 constant SYSTEM_ORDER_TYPE_HASH = keccak256(
     abi.encodePacked(
         "IntentData(",
         "bytes32 salt,",
+        "address caller,",
         "uint256 source,",
         "uint256 deadline,",
         "uint256 destination,",
+        "address fillerAddress,",
         "TargetCall[] calls,",
         "TokenData[] tokens,",
         "IntentStatus status",
