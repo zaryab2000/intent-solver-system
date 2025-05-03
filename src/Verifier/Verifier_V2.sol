@@ -4,9 +4,7 @@ pragma solidity 0.8.25;
 import "./BaseVerifier.sol";
 import "../interfaces/IEvmFactRegistryModule.sol";
 
-
 contract Verifier_V2 is BaseVerifier {
-
     /**
      * @notice Indicates verification type v1: Storage Proof using Herodotus API
      */
@@ -19,30 +17,24 @@ contract Verifier_V2 is BaseVerifier {
     }
     // HELPERS
 
-
     /**
      * @notice Validates a storage proof against a root using SecureMerkleTrie for verification
      */
-    function verifyStorageSlot(uint256 chainId, address targetAccount, uint256 blockNumber, bytes32 slot) public view returns (bytes32) {
-
-        return factsRegistry.storageSlot(
-            chainId,
-            targetAccount,
-            blockNumber,
-            slot
-        );
+    function verifyStorageSlot(uint256 chainId, address targetAccount, uint256 blockNumber, bytes32 slot)
+        public
+        view
+        returns (bytes32)
+    {
+        return factsRegistry.storageSlot(chainId, targetAccount, blockNumber, slot);
     }
 
-    function  getVerificationType() external pure override returns (VerificationType) {
+    function getVerificationType() external pure override returns (VerificationType) {
         return V_TYPE;
     }
 
-    function verifyIntentExecution(
-        address solver,
-        bytes32 _intentId,
-        address fillerContract,
-        uint256 blockNumber
-) external {
+    function verifyIntentExecution(address solver, bytes32 _intentId, address fillerContract, uint256 blockNumber)
+        external
+    {
         require(verifiedIntents[_intentId] == address(0), "Intent already proven");
 
         bytes32 mappingSlot = keccak256(
@@ -51,15 +43,10 @@ contract Verifier_V2 is BaseVerifier {
                 uint256(0) // storage slot 1 for fulfilled mapping in PayloadRouter contract
             )
         );
-        
-        bytes32 slotValue = verifyStorageSlot(
-            getChainId(),
-            fillerContract,
-            blockNumber,
-            mappingSlot
-        );
 
-        (address _solver ) = decodeSlotValue(slotValue);
+        bytes32 slotValue = verifyStorageSlot(getChainId(), fillerContract, blockNumber, mappingSlot);
+
+        (address _solver) = decodeSlotValue(slotValue);
         require(_solver == solver, "Solver does not match");
 
         // Mark intent as proven and unlock funds
@@ -74,9 +61,5 @@ contract Verifier_V2 is BaseVerifier {
 
     function getChainId() public view returns (uint256) {
         return block.chainid;
-        
     }
-
 }
-
-

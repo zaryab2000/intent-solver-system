@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-
 /**
  * @title IVerifier
  * @notice Base interface for the verification of Intent Execution
- * @dev This interface defines the core functionality for verifying intent. 
- *      The verification technique can expand to multiple types. 
- *      Currently it supports 2 types: 
+ * @dev This interface defines the core functionality for verifying intent.
+ *      The verification technique can expand to multiple types.
+ *      Currently it supports 2 types:
  *      v1: Storage Proofs via MPT - Optimism Libs
  *      v2: Storage Proofs via Herodotus Proofs
  */
@@ -19,8 +18,9 @@ interface IVerifier {
      */
     enum VerificationType {
         v1, // Storage Proofs via MPT - Optimism Libs
-        v2  // Storage Proofs via Herodotus Proofs
-    } 
+        v2 // Storage Proofs via Herodotus Proofs
+
+    }
 
     /**
      * @notice Triggers an even when an intent is proven
@@ -39,7 +39,5 @@ interface IVerifier {
      * @param _intentId Hash of the intent to query
      * @return Address of the claimant - In case  the intent is not proven, it returns zero address
      */
-    function getSolverAddress(
-        bytes32 _intentId
-    ) external view returns (address);
+    function getSolverAddress(bytes32 _intentId) external view returns (address);
 }
