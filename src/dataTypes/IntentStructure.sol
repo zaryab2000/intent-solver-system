@@ -4,11 +4,10 @@ pragma solidity 0.8.25;
 
 import "../interfaces/IVerifier.sol";
 
-
 /**
  * @notice Indicates the status of the intent
  */
-enum IntentStatus{
+enum IntentStatus {
     INACTIVE,
     OPEN,
     EXPIRED,
@@ -37,13 +36,11 @@ struct TokenData {
     uint256 amount;
 }
 
-
 /**
  * @notice Indicates solver's data struct with info of execution
  * @param token The address of the token to transfer
  * @param amount The amount of tokens to transfer
  */
-
 struct SolverData {
     address solverAddress;
     IVerifier.VerificationType v_type;
@@ -98,8 +95,4 @@ bytes32 constant SYSTEM_ORDER_TYPE_HASH = keccak256(
         "uint256 amount",
         ")"
     )
-
-
-
-
 );

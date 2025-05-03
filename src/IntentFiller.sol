@@ -1,17 +1,27 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.25;
 
-
-import { OnchainCrossChainOrder, 
-         ResolvedCrossChainOrder, 
-            GaslessCrossChainOrder, 
-                Output, 
-                    FillInstruction } from "intents-framework/ERC7683/IERC7683.sol";
+import {
+    OnchainCrossChainOrder,
+    ResolvedCrossChainOrder,
+    GaslessCrossChainOrder,
+    Output,
+    FillInstruction
+} from "intents-framework/ERC7683/IERC7683.sol";
 
 import "./interfaces/IVerifier.sol";
 import {BaseVerifier} from "./Verifier/BaseVerifier.sol";
-import {IDestinationSettler} from "intents-framework/ERC7683/IERC7683.sol";  
-import {StoredIntentData, IntentData, SolverData, SystemOrderData, TokenData, TargetCall, IntentStatus, SYSTEM_ORDER_TYPE_HASH} from "./dataTypes/IntentStructure.sol";
+import {IDestinationSettler} from "intents-framework/ERC7683/IERC7683.sol";
+import {
+    StoredIntentData,
+    IntentData,
+    SolverData,
+    SystemOrderData,
+    TokenData,
+    TargetCall,
+    IntentStatus,
+    SYSTEM_ORDER_TYPE_HASH
+} from "./dataTypes/IntentStructure.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -19,7 +29,8 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/***
+/**
+ *
  * @title IntentFiller
  * @notice The filler contract that is responsible for fulfilling intents.
  * @dev    This contract is tasked with the following:
@@ -29,22 +40,17 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  *                                        3. maintain records of fulfilled intents and their solver,
  *                                        4. adhere to IDestinationSettler interface for cross-chain order settlement.
  */
-contract IntentFiller is IDestinationSettler, Ownable{
+contract IntentFiller is IDestinationSettler, Ownable {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
 
     constructor() Ownable(msg.sender) {
         // Initialize the contract
-
     }
 
     // ============ Events ============
     event IntentFilled(
-        bytes32 indexed orderId,
-        address indexed filler,
-        address indexed solver,
-        bytes originData,
-        bytes fillerData
+        bytes32 indexed orderId, address indexed filler, address indexed solver, bytes originData, bytes fillerData
     );
 
     // ============ Errors ============
@@ -65,24 +71,20 @@ contract IntentFiller is IDestinationSettler, Ownable{
     // @dev    This function will be used to update the solver status.
     function updateSolverStatus(address solver, bool status) external onlyOwner {
         isSolver[solver] = status;
-        
     }
 
-    
-    function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external payable{
+    function fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData) external payable {
         // 1. Extract the INTENT Data from originData
-           // Check if intent deadline has expired - if yes, revert 
+        // Check if intent deadline has expired - if yes, revert
 
         IntentData memory intentData = abi.decode(originData, (IntentData));
         if (intentData.deadline < block.timestamp) {
             revert IntentExpired();
         }
-        
+
         // 2. extract fillerData to get solver address, v_type and verifier address
         SolverData memory solverData = abi.decode(fillerData, (SolverData));
         IVerifier.VerificationType v_type = solverData.v_type;
-
-
 
         // 3. based on v_type, call the appropriate function to fulfil and record the intent
         if (v_type == IVerifier.VerificationType.v1) {
@@ -97,19 +99,15 @@ contract IntentFiller is IDestinationSettler, Ownable{
     }
 
     // ============ Internal Functions ============
-    function fulfillIntent_v1(
-        IntentData memory intentData,
-        address solverAddress,
-        bytes32 intentId
-    ) internal {
-       // Check solver is whitelisted
+    function fulfillIntent_v1(IntentData memory intentData, address solverAddress, bytes32 intentId) internal {
+        // Check solver is whitelisted
         require(isSolver[solverAddress], "Solver is not whitelisted");
-       // Check intent destination is same as the current chain
-        if(intentData.destination != block.chainid) {
+        // Check intent destination is same as the current chain
+        if (intentData.destination != block.chainid) {
             revert InvalidChainId();
         }
-       // Check filler address is accurate
-       if(intentData.fillerAddress != address(this)) {
+        // Check filler address is accurate
+        if (intentData.fillerAddress != address(this)) {
             revert InvalidAddress();
         }
         // Check intent hash matches accurate intentId
@@ -126,26 +124,23 @@ contract IntentFiller is IDestinationSettler, Ownable{
         // Bring all tokens to the filler address
         uint256 totalTokens = intentData.tokens.length;
 
-        for(uint256 i = 0; i < totalTokens; i++) {
+        for (uint256 i = 0; i < totalTokens; i++) {
             TokenData memory tokenData = intentData.tokens[i];
             // Transfer the tokens to the filler address
             IERC20(tokenData.token).safeTransferFrom(intentData.caller, address(this), tokenData.amount);
         }
 
         uint256 totalNativeValue = msg.value;
-        
+
         // Prepare the data for target call
-        for(uint256 i = 0; i < intentData.calls.length; i++) {
+        for (uint256 i = 0; i < intentData.calls.length; i++) {
             TargetCall memory call = intentData.calls[i];
 
             // Check if the target address is a contract
-            if(call.target.code.length == 0 && call.data.length > 0) {
+            if (call.target.code.length == 0 && call.data.length > 0) {
                 revert InvalidCallToEOA();
-            }else{
-                (
-                    bool success,
-                    bytes memory returnData
-                ) = call.target.call{value: call.value}(call.data);
+            } else {
+                (bool success, bytes memory returnData) = call.target.call{value: call.value}(call.data);
 
                 // Check if the call was successful
                 if (!success) {
@@ -155,31 +150,13 @@ contract IntentFiller is IDestinationSettler, Ownable{
                 totalNativeValue -= call.value;
             }
         }
-            // If call is being made to EOA, revert
-            // Call the target contract with the data
-        
+        // If call is being made to EOA, revert
+        // Call the target contract with the data
     }
 
-    function fulfillIntent_v2(
-        IntentData memory intentData,
-        address solverAddress,
-        bytes32 orderId
-    ) internal {
-       
-        
-    }
+    function fulfillIntent_v2(IntentData memory intentData, address solverAddress, bytes32 orderId) internal {}
 
     function getIntenId(IntentData memory intent, address caller) public pure returns (bytes32 _intentId) {
-        _intentId = keccak256(abi.encodePacked(
-            caller,
-            intent.salt,
-            intent.source,
-            intent.deadline,
-            intent.destination
-        ));
+        _intentId = keccak256(abi.encodePacked(caller, intent.salt, intent.source, intent.deadline, intent.destination));
     }
-
-  
-
-  
 }
