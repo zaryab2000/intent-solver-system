@@ -74,6 +74,13 @@ struct SystemOrderData {
 
 bytes32 constant SYSTEM_ORDER_TYPE_HASH = keccak256(
     abi.encodePacked(
+        "SystemOrderData(",
+        "IntentData intent,",
+        "address creatorAddress,",
+        "address verifierAddress,",
+        "uint256 nativeTokenValue,",
+        "TokenData[] solverTokens",
+        ")",
         "IntentData(",
         "bytes32 salt,",
         "address caller,",
