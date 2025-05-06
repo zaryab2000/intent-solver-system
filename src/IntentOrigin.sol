@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.25;
 
+import "forge-std/console.sol";
+
 import {
     OnchainCrossChainOrder,
     ResolvedCrossChainOrder,
@@ -98,6 +100,7 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
     /// @param originFillerData Any filler-defined data required by the settler
     function openFor(GaslessCrossChainOrder calldata order, bytes calldata signature, bytes calldata originFillerData)
         external
+        payable
         override
     {
         // Check order deadline
@@ -170,14 +173,14 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
                 systemOrderData.intent.destination
             );
         }
-        if (systemOrderData.nativeTokenValue > 0) {
-            minReceived[totalTokens_solverData] = Output(
-                bytes32(uint256(uint160(address(0)))),
-                systemOrderData.nativeTokenValue,
-                bytes32(uint256(uint160(address(0)))),
-                systemOrderData.intent.destination
-            );
-        }
+        // if (systemOrderData.nativeTokenValue > 0) {
+        //     minReceived[totalTokens_solverData] = Output(
+        //         bytes32(uint256(uint160(address(0)))),
+        //         systemOrderData.nativeTokenValue,
+        //         bytes32(uint256(uint160(address(0)))),
+        //         systemOrderData.intent.destination
+        //     );
+        // }
 
         IntentData memory intent = systemOrderData.intent;
         FillInstruction[] memory instructions = new FillInstruction[](1);
@@ -242,14 +245,14 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
             );
         }
 
-        if (systemOrderData.nativeTokenValue > 0) {
-            minReceived[totalTokens_solverData] = Output(
-                bytes32(uint256(uint160(address(0)))),
-                systemOrderData.nativeTokenValue,
-                bytes32(uint256(uint160(address(0)))),
-                systemOrderData.intent.destination
-            );
-        }
+        // if (systemOrderData.nativeTokenValue > 0) {
+        //     minReceived[totalTokens_solverData] = Output(
+        //         bytes32(uint256(uint160(address(0)))),
+        //         systemOrderData.nativeTokenValue,
+        //         bytes32(uint256(uint160(address(0)))),
+        //         systemOrderData.intent.destination
+        //     );
+        // }
         IntentData memory intent = systemOrderData.intent;
 
         FillInstruction[] memory instructions = new FillInstruction[](1);
@@ -309,7 +312,7 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
         if (order.originSettler != address(this)) {
             return false;
         }
-
+        
         bytes32 messageHash = keccak256(
             abi.encode(
                 GASLESS_CROSSCHAIN_ORDER_TYPEHASH,
@@ -324,9 +327,13 @@ contract IntentOrigin is Ownable, IOriginSettler, EIP712 {
             )
         );
 
-        bytes32 hash = _hashTypedDataV4(messageHash);
+        bytes32 hash = getTypedHash(messageHash);
         address signer = hash.recover(signature);
 
         return signer == order.user;
+    }
+
+    function getTypedHash(bytes32 messageHash) public view returns (bytes32) {
+        return _hashTypedDataV4(messageHash);
     }
 }

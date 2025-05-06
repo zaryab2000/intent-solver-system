@@ -31,7 +31,6 @@ import {
 
 contract BaseTest is Test {
     // Contracts
-    IntentOrigin public intentOrigin;
     IntentFiller public intentFiller;
     Verifier_V1 public verifier_v1;
     Verifier_V2 public verifier_v2;
@@ -41,21 +40,33 @@ contract BaseTest is Test {
     address public user;
     address public solver;
     address public owner;
+    uint256 userPrivateKey;
+    // Chain IDs
+    address public factsRegistry;
 
     // Chain IDs
     uint256 constant ARB_SEPOLIA_CHAIN_ID = 421614;
     uint256 constant ETH_SEPOLIA_CHAIN_ID = 11155111;
     
     function setUp() public virtual {
-        // Setup accounts
+        // make accounts
         owner = makeAddr("owner");
-        user = makeAddr("user");
+        (user, userPrivateKey) = makeAddrAndKey("user");
         solver = makeAddr("solver");
+        factsRegistry = makeAddr("factsRegistry");
+        // Deploy contracts
+        vm.startPrank(owner);        
+        // Deploy IntentFiller
+        intentFiller = new IntentFiller();
         
-        // Fund accounts
-        vm.deal(owner, 100 ether);
-        vm.deal(user, 100 ether);
-        vm.deal(solver, 100 ether);
+        // Deploy Target
+        target = new Target();
+        
+        // Deploy Verifiers
+        verifier_v1 = new Verifier_V1();
+        verifier_v2 = new Verifier_V2(address(factsRegistry));
+        
+        vm.stopPrank();
     }
     
     // Helper function to create a basic intent for testing
