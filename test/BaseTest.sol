@@ -70,7 +70,7 @@ contract BaseTest is Test {
         calls[0] = TargetCall({
             target: address(target),
             value: 0.5 ether,
-            data: abi.encodeWithSignature("execute()")
+            data: abi.encodeWithSignature("lockNativeToken(address)", user)
         });
         
         return IntentData({
